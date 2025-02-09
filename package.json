@@ -1,0 +1,46 @@
+{
+  "name": "whatsapp-demo-chatbot-js-v2",
+  "version": "0.1.0",
+  "description": "Репозиторий demo-chatbot-js-v2 на основе новой библиотеки на js",
+  "main": "index.js",
+  "scripts": {
+    "start:debug": "cross-env DEBUG=@green-api/whatsapp-bot npx tsx bot.ts",
+    "start": "cross-env DEBUG= npx tsx bot.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/green-api/whatsapp-demo-chatbot-js-v2.git"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "api",
+    "library",
+    "green-api",
+    "chat",
+    "messaging",
+    "chatbot"
+  ],
+  "author": "GREEN-API",
+  "license": "CC-BY-ND-4.0",
+  "bugs": {
+    "url": "https://github.com/green-api/whatsapp-demo-chatbot-js-v2/issues"
+  },
+  "homepage": "https://github.com/green-api/whatsapp-demo-chatbot-js-v2#readme",
+  "dependencies": {
+    "@green-api/whatsapp-chatbot-js-v2": "^1.1.0",
+    "debug": "^4.4.0",
+    "dotenv": "^16.4.7",
+    "js-yaml": "^4.1.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.13.1",
+    "cross-env": "^7.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
