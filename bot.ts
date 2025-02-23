@@ -6,6 +6,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 interface StringsData {
+	session_timeout_message: Record<string, string>;
 	select_language: string;
 	specify_language: string;
 	please_use_text: string;
@@ -86,7 +87,12 @@ const bot = new WhatsAppBot<CustomSessionData>({
 	apiTokenInstance: process.env.INSTANCE_TOKEN!,
 	defaultState: "start",
 	backCommands: "back",
-	sessionTimeout: 30,
+	sessionTimeout: 300,
+	getSessionTimeoutMessage: (session) => {
+		const lang = session.stateData?.lang || "en";
+		return strings.session_timeout_message[lang];
+	},
+	clearWebhookQueueOnStart: true,
 	settings: {
 		webhookUrl: "",
 		webhookUrlToken: "",
@@ -273,7 +279,7 @@ const mainState: State<CustomSessionData> = {
 
 			case "11":
 				await bot.sendText(message.chatId, strings.add_to_contact[lang]);
-				return "create_group";
+				return {state: "create_group", data};
 
 			case "12":
 				await bot.sendText(
@@ -350,14 +356,11 @@ const createGroupState: State<CustomSessionData> = {
 				console.error("Error creating group:", error);
 			}
 			return {state: "main", skipOnEnter: true};
+		} else if (message.text === "0") {
+			return {state: "main", data};
 		}
 
-		if (message.text?.toLowerCase() === "menu") {
-			return "main";
-		}
-
-		await bot.sendText(message.chatId, strings.not_recognized_message[lang]);
-		return undefined;
+		return null;
 	},
 };
 
@@ -386,23 +389,8 @@ bot.onType("*", async (message, session) => {
 	);
 });
 
-async function clearWebhookQueue(bot: WhatsAppBot) {
-	while (true) {
-		const notification = await bot.api.webhookService.receiveNotification();
-		if (!notification) {
-			console.log("Queue is empty");
-			break;
-		}
-		await bot.api.webhookService.deleteNotification(notification.receiptId);
-		console.log(`Deleted notification id: ${notification.receiptId}`);
-	}
-}
-
 async function launchBot() {
 	try {
-		console.log("Clearing webhook queue...");
-		await clearWebhookQueue(bot);
-
 		console.log("Starting the bot");
 		await bot.start();
 	} catch (error) {
