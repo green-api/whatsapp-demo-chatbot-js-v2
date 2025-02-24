@@ -355,7 +355,7 @@ const createGroupState: State<CustomSessionData> = {
 			} catch (error) {
 				console.error("Error creating group:", error);
 			}
-			return {state: "main", skipOnEnter: true};
+			return {state: "main", skipOnEnter: true, data};
 		} else if (message.text === "0") {
 			return {state: "main", data};
 		}
