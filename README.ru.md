@@ -79,6 +79,97 @@ WhatsApp [green-api.com](https://green-api.com/en/).
 - Команды меню (`menu`, `меню`) - Возвращение в главное меню
 - Обработчик сообщений по умолчанию для неподдерживаемых команд
 
+# Интеграция с GPT
+
+Этот демо-бот показывает, как интегрировать библиотеку `@green-api/whatsapp-chatgpt` в качестве обработчика сообщений в архитектуру,
+основанную на состояниях. Интеграция осуществляется через специальное GPT-состояние, которое управляет разговором с
+моделью GPT.
+
+## Реализация GPT-состояния
+
+```typescript
+const gptBot = new WhatsappGptBot({
+    idInstance: process.env.INSTANCE_ID!,
+    apiTokenInstance: process.env.INSTANCE_TOKEN!,
+    openaiApiKey: process.env.OPENAI_API_KEY!,
+    model: "gpt-4o",
+    maxHistoryLength: 15,
+    systemMessage: "You are a helpful WhatsApp assistant created by GREEN-API. Answer concisely but informatively.",
+    temperature: 0.7,
+});
+
+interface CustomSessionData {
+    lang?: string;
+    gptSession?: GPTSessionData;
+}
+
+const gptState: State<CustomSessionData> = {
+    name: "gpt_state",
+    async onEnter(message, data) {
+        const lang = data?.lang || "en";
+        await bot.sendText(message.chatId, strings.chat_gpt_intro[lang]);
+
+        // Инициализация сессии GPT с системным сообщением
+        data.gptSession = {
+            messages: [{role: "system", content: gptBot.systemMessage}],
+            lastActivity: Date.now(),
+        };
+    },
+    async onMessage(message, data) {
+        const lang = data?.lang || "en";
+        const exitCommands = [
+            "menu", "меню", "exit", "выход", "stop", "стоп", "back", "назад",
+            "menú", "salir", "parar", "atrás", "תפריט", "יציאה", "עצור", "חזור",
+            "мәзір", "шығу", "тоқта", "артқа",
+        ];
+
+        // Обработка команд выхода
+        if (exitCommands.includes(message.text?.toLowerCase() || "")) {
+            return {state: "main", data};
+        }
+
+        try {
+            // Обработка сообщения через GPT
+            const {response, updatedData} = await gptBot.processMessage(
+                    message,
+                    data.gptSession
+            );
+
+            await bot.sendText(message.chatId, response);
+            data.gptSession = updatedData;
+            return undefined;
+        } catch (error) {
+            console.error("Error in GPT processing:", error);
+            await bot.sendText(message.chatId, strings.chat_gpt_error[lang]);
+            return undefined;
+        }
+    }
+};
+```
+
+## Основные особенности:
+
+1. **Интеграция на основе состояний**
+    - Функциональность GPT инкапсулирована в отдельном состоянии
+    - Плавная интеграция с существующими состояниями бота
+    - Чистый переход между обычным и GPT режимами
+
+2. **Управление сессиями**
+    - История разговора GPT хранится в данных состояния
+    - Сохраняется между сообщениями в рамках одной сессии
+    - Корректная очистка при выходе из состояния
+
+3. **Многоязычная поддержка**
+    - Команды выхода на нескольких языках
+    - Сообщения об ошибках с учетом языка
+
+## Использование
+
+1. Выберите опцию 14 из главного меню для входа в режим GPT
+2. Общайтесь естественным образом с моделью GPT
+3. Используйте любую из команд выхода для возврата в главное меню
+4. История разговора сохраняется в рамках сессии
+
 ## Запуск бота
 
 1. **Запуск**
@@ -193,13 +284,13 @@ WhatsApp [green-api.com](https://green-api.com/en/).
 
 ```typescript
 const startState: State<CustomSessionData> = {
-	name: "start",
-	async onEnter(message) {
-		await bot.sendText(message.chatId, strings.select_language);
-	},
-	async onMessage(message, data) {
-		// Реализация обработчика
-	}
+    name: "start",
+    async onEnter(message) {
+        await bot.sendText(message.chatId, strings.select_language);
+    },
+    async onMessage(message, data) {
+        // Реализация обработчика
+    }
 };
 ```
 

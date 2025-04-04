@@ -2,6 +2,7 @@ import { WhatsAppBot, State } from "@green-api/whatsapp-chatbot-js-v2";
 import { readFileSync } from "fs";
 import { load } from "js-yaml";
 import * as dotenv from "dotenv";
+import { GPTSessionData, WhatsappGptBot } from "@green-api/whatsapp-chatgpt";
 
 dotenv.config();
 
@@ -47,6 +48,8 @@ interface StringsData {
 	send_group_message: Record<string, string>;
 	send_group_message_set_picture_false: Record<string, string>;
 	bot_name: Record<string, string>;
+	chat_gpt_intro: Record<string, string>;
+	chat_gpt_error: Record<string, string>;
 	links: Record<string, {
 		send_text_documentation: string;
 		send_file_documentation: string;
@@ -68,6 +71,7 @@ interface StringsData {
 interface CustomSessionData {
 	lang?: string;
 	last_touch_timestamp?: number;
+	gptSession?: GPTSessionData;
 }
 
 function getStringsData(): StringsData {
@@ -87,7 +91,7 @@ const bot = new WhatsAppBot<CustomSessionData>({
 	apiTokenInstance: process.env.INSTANCE_TOKEN!,
 	defaultState: "start",
 	backCommands: "back",
-	sessionTimeout: 300,
+	sessionTimeout: 1800,
 	getSessionTimeoutMessage: (session) => {
 		const lang = session.stateData?.lang || "en";
 		return strings.session_timeout_message[lang];
@@ -104,6 +108,16 @@ const bot = new WhatsAppBot<CustomSessionData>({
 		pollMessageWebhook: "yes",
 		markIncomingMessagesReaded: "yes",
 	},
+});
+
+const gptBot = new WhatsappGptBot({
+	idInstance: process.env.INSTANCE_ID!,
+	apiTokenInstance: process.env.INSTANCE_TOKEN!,
+	openaiApiKey: process.env.OPENAI_API_KEY!,
+	model: "gpt-4o",
+	maxHistoryLength: 15,
+	systemMessage: "You are a helpful WhatsApp assistant created by GREEN-API. Answer concisely but informatively.",
+	temperature: 0.7,
 });
 
 const startState: State<CustomSessionData> = {
@@ -288,7 +302,6 @@ const mainState: State<CustomSessionData> = {
 					{quotedMessageId: message.messageId},
 				);
 				break;
-
 			case "13":
 				await bot.sendFileByUpload(message.chatId, {
 					filePath: "assets/about_js.jpg",
@@ -301,11 +314,51 @@ const mainState: State<CustomSessionData> = {
 						strings.link_to_youtube[lang] + strings.links[lang].youtube_channel,
 				});
 				break;
+			case "14":
+				return {state: "gpt_state", data};
+
 			default:
 				return null;
 		}
 
 		return undefined;
+	},
+};
+
+const gptState: State<CustomSessionData> = {
+	name: "gpt_state",
+	async onEnter(message, data) {
+		const lang = data?.lang || "en";
+		await bot.sendText(message.chatId, strings.chat_gpt_intro[lang]);
+
+		data.gptSession = {
+			messages: [{role: "system", content: gptBot.systemMessage}],
+			lastActivity: Date.now(),
+		};
+	},
+	async onMessage(message, data) {
+		const lang = data?.lang || "en";
+		const exitCommands = [
+			"menu", "меню", "exit", "выход", "stop", "стоп", "back", "назад",
+			"menú", "salir", "parar", "atrás", "תפריט", "יציאה", "עצור", "חזור",
+			"мәзір", "шығу", "тоқта", "артқа",
+		];
+
+		if (exitCommands.includes(message.text?.toLowerCase() || "")) {
+			return {state: "main", data};
+		}
+
+		try {
+			const {response, updatedData} = await gptBot.processMessage(message, data.gptSession);
+			await bot.sendText(message.chatId, response);
+
+			data.gptSession = updatedData;
+			return undefined;
+		} catch (error) {
+			console.error("Error in GPT processing:", error);
+			await bot.sendText(message.chatId, strings.chat_gpt_error[lang]);
+			return undefined;
+		}
 	},
 };
 
@@ -367,6 +420,7 @@ const createGroupState: State<CustomSessionData> = {
 bot.addState(startState);
 bot.addState(mainState);
 bot.addState(createGroupState);
+bot.addState(gptState);
 
 bot.onText(["стоп", "stop", "0"], async (message, session) => {
 	const lang = session.stateData?.lang || "en";

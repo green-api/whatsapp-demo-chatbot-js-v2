@@ -79,6 +79,96 @@ The chatbot uses a state-based architecture with three main states:
 - Menu commands (`menu`, `меню`) - Return to main menu
 - Fallback handler for unrecognized messages
 
+# GPT Integration
+
+This demo bot also showcases how to integrate the `@green-api/whatsapp-chatgpt` library as a message processor within a state-based
+architecture. The integration is done through a dedicated GPT state that manages the conversation with the GPT model.
+
+## GPT State Implementation
+
+```typescript
+const gptBot = new WhatsappGptBot({
+    idInstance: process.env.INSTANCE_ID!,
+    apiTokenInstance: process.env.INSTANCE_TOKEN!,
+    openaiApiKey: process.env.OPENAI_API_KEY!,
+    model: "gpt-4o",
+    maxHistoryLength: 15,
+    systemMessage: "You are a helpful WhatsApp assistant created by GREEN-API. Answer concisely but informatively.",
+    temperature: 0.7,
+});
+
+interface CustomSessionData {
+    lang?: string;
+    gptSession?: GPTSessionData;
+}
+
+const gptState: State<CustomSessionData> = {
+    name: "gpt_state",
+    async onEnter(message, data) {
+        const lang = data?.lang || "en";
+        await bot.sendText(message.chatId, strings.chat_gpt_intro[lang]);
+
+        // Initialize GPT session with system message
+        data.gptSession = {
+            messages: [{role: "system", content: gptBot.systemMessage}],
+            lastActivity: Date.now(),
+        };
+    },
+    async onMessage(message, data) {
+        const lang = data?.lang || "en";
+        const exitCommands = [
+            "menu", "меню", "exit", "выход", "stop", "стоп", "back", "назад",
+            "menú", "salir", "parar", "atrás", "תפריט", "יציאה", "עצור", "חזור",
+            "мәзір", "шығу", "тоқта", "артқа",
+        ];
+
+        // Handle exit commands
+        if (exitCommands.includes(message.text?.toLowerCase() || "")) {
+            return {state: "main", data};
+        }
+
+        try {
+            // Process message through GPT
+            const {response, updatedData} = await gptBot.processMessage(
+                    message,
+                    data.gptSession
+            );
+
+            await bot.sendText(message.chatId, response);
+            data.gptSession = updatedData;
+            return undefined;
+        } catch (error) {
+            console.error("Error in GPT processing:", error);
+            await bot.sendText(message.chatId, strings.chat_gpt_error[lang]);
+            return undefined;
+        }
+    }
+};
+```
+
+## Key Features:
+
+1. **State-Based Integration**
+    - GPT functionality is encapsulated in a dedicated state
+    - Seamless integration with existing bot states
+    - Clean transition between regular and GPT modes
+
+2. **Session Management**
+    - GPT conversation history stored in state data
+    - Preserved across messages within the same session
+    - Proper cleanup on state exit
+
+3. **Multilingual Support**
+    - Exit commands in multiple languages
+    - Language-specific error messages
+
+## Usage
+
+1. Select option 14 from the main menu to enter GPT mode
+2. Chat naturally with the GPT model
+3. Use any of the exit commands to return to the main menu
+4. The conversation history is maintained within the session
+
 ## Running the Bot
 
 1. **Launch**
@@ -193,13 +283,13 @@ After language selection, users can test various WhatsApp API features:
 
 ```typescript
 const startState: State<CustomSessionData> = {
-	name: "start",
-	async onEnter(message) {
-		await bot.sendText(message.chatId, strings.select_language);
-	},
-	async onMessage(message, data) {
-		// Handler implementation
-	}
+    name: "start",
+    async onEnter(message) {
+        await bot.sendText(message.chatId, strings.select_language);
+    },
+    async onMessage(message, data) {
+        // Handler implementation
+    }
 };
 ```
 
@@ -207,9 +297,9 @@ const startState: State<CustomSessionData> = {
 
 ```typescript
 await bot.sendFileByUrl(message.chatId, {
-	url: "https://example.com/file.pdf",
-	fileName: "document.pdf",
-	caption: "File caption"
+    url: "https://example.com/file.pdf",
+    fileName: "document.pdf",
+    caption: "File caption"
 });
 ```
 
@@ -217,15 +307,15 @@ await bot.sendFileByUrl(message.chatId, {
 
 ```typescript
 const group = await bot.api.group.createGroup(
-	groupName,
-	[message.chatId]
+        groupName,
+        [message.chatId]
 );
 
 if (group.created) {
-	await bot.api.group.setGroupPicture(
-		group.chatId,
-		"assets/group_avatar.jpg"
-	);
+    await bot.api.group.setGroupPicture(
+            group.chatId,
+            "assets/group_avatar.jpg"
+    );
 }
 ```
 
