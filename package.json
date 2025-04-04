@@ -1,6 +1,6 @@
 {
   "name": "@green-api/whatsapp-demo-chatbot-js-v2",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Репозиторий @green-api/demo-chatbot-js-v2 на основе новой библиотеки на js",
   "main": "index.js",
   "scripts": {
